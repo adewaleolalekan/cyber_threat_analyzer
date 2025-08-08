@@ -1,0 +1,10 @@
+bash_history
+etc_nginx_sites-available_aiagent
+jail.local
+aiagent.service
+requirements.txt.bak
+app/main_app.py.bak
+app/llm.py.bak
+app/parser.py.bak
+app/api_key_check.py
+app/utils.py

@@ -1,0 +1,13 @@
+streamlit
+openai
+requests
+markdown2
+weasyprint
+pandas
+tqdm
+ipwhois
+fpdf
+tldextract
+fpdf
+scapy
+ollama
