@@ -4,6 +4,14 @@ An intelligent agent for analyzing network captures and logs using a local AI mo
 
 ---
 
+## 🌐 Live Demo
+
+You can see a live version of this agent in action here:
+
+**[https://aiagent.viewdns.net](https://aiagent.viewdns.net)**
+
+---
+
 ## ✨ About The App
 
 This tool is designed for security analysts, network administrators, and cybersecurity enthusiasts who need a quick and efficient way to analyze network traffic or log files. By leveraging the power of local large language models (LLMs), it provides expert-level analysis without sending your sensitive data to third-party cloud services.
