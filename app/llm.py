@@ -1,19 +1,24 @@
 # app/llm.py
-import ollama
-import json
+import openai
 
-def call_llm(log_text: str, indicators: list) -> str:
+def call_llm(log_text: str, indicators: list, api_key: str) -> str:
     """
-    Calls a local LLM using Ollama to analyze the log text and indicators.
+    Calls the OpenAI API to analyze the log text and indicators.
     
     Args:
         log_text (str): The summary text from the parsed file.
         indicators (list): A list of enriched indicator dictionaries.
+        api_key (str): The user's OpenAI API key.
 
     Returns:
         str: The analysis response from the language model.
     """
-    # Construct a detailed prompt for the local model
+    if not api_key:
+        raise ValueError("OpenAI API key is required for analysis.")
+
+    client = openai.OpenAI(api_key=api_key)
+
+    # Construct a detailed prompt for the model
     indicator_summary = "\n".join([f"- {i['type'].upper()}: {i['indicator']} (Threat Score: {i['score']})" for i in indicators]) if indicators else "None found"
     
     prompt = f"""
@@ -22,7 +27,7 @@ As a senior cybersecurity analyst AI, your task is to analyze the following netw
 **Input Data:**
 A summary of network packets or log entries is provided below.
 ```
-{log_text[:3500]}
+{log_text[:4000]}
 ```
 
 **Extracted Indicators of Compromise (IOCs):**
@@ -36,24 +41,23 @@ Based on all the provided information, please produce a brief but comprehensive 
 
 Provide a direct, professional response.
 """
-
     try:
-        # Call the Ollama chat API
-        response = ollama.chat(
-            model='llama3',  # You can change this to another model like 'mistral'
-            messages=[
-                {'role': 'user', 'content': prompt},
-            ]
-        )
-        return response['message']['content'].strip()
+        messages = [
+            {"role": "system", "content": "You are an expert cybersecurity analyst."},
+            {"role": "user", "content": prompt}
+        ]
 
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.3,
+            max_tokens=800
+        )
+        return response.choices[0].message.content.strip()
+
+    except openai.AuthenticationError:
+        return "Error: Invalid OpenAI API Key. Please check your key and try again."
+    except openai.RateLimitError:
+        return "Error: You have exceeded your OpenAI API quota. Please check your plan and billing details."
     except Exception as e:
-        # Handle cases where Ollama service is not running or the model is not available
-        error_message = (
-            "Error connecting to Ollama. Please ensure that the Ollama application is running "
-            "and that you have pulled the required model (e.g., 'ollama run llama3').\n\n"
-            f"Details: {e}"
-        )
-        print(error_message) # Also print to console for debugging
-        return error_message
-
+        return f"An unexpected error occurred with the OpenAI API: {e}"

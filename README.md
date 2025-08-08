@@ -1,6 +1,6 @@
 # 🛡️ AI Cyber Threat Analyzer
 
-An intelligent agent for analyzing network captures and logs using a local AI model. This application provides a web-based interface to upload `.pcap`, `.pcapng`, or `.log` files, analyzes them for potential threats, and generates a comprehensive report.
+An intelligent agent for analyzing network captures and logs using OpenAI's GPT models. This application provides a web-based interface to upload `.pcap`, `.pcapng`, or `.log` files, analyzes them for potential threats, and generates a comprehensive report.
 
 ---
 
@@ -8,13 +8,13 @@ An intelligent agent for analyzing network captures and logs using a local AI mo
 
 You can see a live version of this agent in action here:
 
-**[https://aiagent.viewdns.net](https://aiagent.viewdns.net)**
+**[https://adewale.viewdns.net](https://adewale.viewdns.net)**
 
 ---
 
 ## ✨ About The App
 
-This tool is designed for security analysts, network administrators, and cybersecurity enthusiasts who need a quick and efficient way to analyze network traffic or log files. By leveraging the power of local large language models (LLMs), it provides expert-level analysis without sending your sensitive data to third-party cloud services.
+This tool is designed for security analysts, network administrators, and cybersecurity enthusiasts who need a quick and efficient way to analyze network traffic or log files. By leveraging the power of advanced AI, it provides expert-level analysis with a simple, user-friendly workflow.
 
 ---
 
@@ -24,26 +24,28 @@ The application follows a simple yet powerful workflow:
 
 1.  **File Upload**: The user uploads a network capture (`.pcap`, `.pcapng`) or a generic log file (`.log`, `.txt`) through the Streamlit web interface.
 
-2.  **Parsing**:
-    * **PCAP/PCAPNG Files**: The app uses **TShark** (the command-line tool for Wireshark) to convert the packet capture into a structured JSON format. This provides a detailed and reliable way to access every layer of the network packets.
-    * **Log Files**: For text-based logs, the app uses regular expressions to find and extract indicators like IP addresses, domains, and URLs.
+2.  **API Key Entry**: The user enters their OpenAI API key.
 
-3.  **Indicator Enrichment**: Extracted indicators are assigned a simulated threat score (Low, Medium, High) to help prioritize the analysis.
+3.  **Analysis Trigger**: The user clicks the "Analyze File" button to begin the process.
 
-4.  **AI Analysis**: The parsed text summary and the list of indicators are sent to a locally running AI model via **Ollama**. The `Llama 3` model analyzes the data and generates a threat summary, identifies key findings, and provides actionable recommendations.
+4.  **Parsing (PCAP/PCAPNG)**: The app uses **TShark** (the command-line tool for Wireshark) to convert the entire packet capture into a structured JSON format using the robust `tshark -T json` command. This method was chosen for its reliability in accurately extracting all packet data.
 
-5.  **Report Generation**: A detailed PDF report is created, containing the analysis overview, the AI-generated summary, and a color-coded table of all the threat indicators found in the file.
+5.  **Parsing (Logs)**: For text-based logs, the app uses regular expressions to find and extract indicators like IP addresses, domains, and URLs.
+
+6.  **AI Analysis**: The parsed text summary and the list of indicators are sent to an **OpenAI GPT model** (`gpt-4o-mini`). The model analyzes the data and generates a threat summary, identifies key findings, and provides actionable recommendations.
+
+7.  **Report Generation**: A detailed PDF report is created, containing the analysis overview, the AI-generated summary, and a color-coded table of all the threat indicators found in the file.
 
 ---
 
 ## 🚀 Features
 
-* **Local First**: All analysis is done locally on your machine, ensuring data privacy and security.
-* **No API Keys Needed**: Uses the open-source Ollama and Llama 3, eliminating the need for paid API keys.
+* **Advanced AI Analysis**: Leverages OpenAI's powerful models for in-depth threat intelligence.
+* **User-Controlled Workflow**: Analysis begins only when you click the "Analyze" button.
 * **Multiple File Types**: Supports both binary packet captures (`pcap`, `pcapng`) and text-based logs.
 * **Rich PDF Reporting**: Generates a professional, easy-to-read PDF report for offline analysis and sharing.
 * **Visually Appealing UI**: A modern, dark-themed interface built with Streamlit.
-* **Secure**: Includes checks to prevent the upload of dangerous file types and oversized files.
+* **Secure**: Includes checks to prevent the upload of dangerous file types and oversized files. It also cleans up temporary files automatically.
 
 ---
 
@@ -51,7 +53,7 @@ The application follows a simple yet powerful workflow:
 
 * **Backend**: Python
 * **Web Framework**: Streamlit
-* **AI/LLM**: Ollama with Llama 3
+* **AI/LLM**: OpenAI (GPT-4o-mini)
 * **Packet Analysis**: TShark
 * **PDF Generation**: FPDF
 
@@ -73,20 +75,10 @@ sudo apt install -y python3-pip python3-venv
 ```bash
 sudo apt install -y tshark
 ```
+
 > **Note:** During the installation, you will be asked if non-superusers should be able to capture packets. Select **<Yes>**.
 
-### 3. Install Ollama and Llama 3
-
-```bash
-# Install Ollama
-curl -fsSL [https://ollama.com/install.sh](https://ollama.com/install.sh) | sh
-
-# Download the Llama 3 model (approx. 4.7 GB)
-ollama run llama3
-```
-> After the model downloads, you can type `/bye` to exit the Ollama chat. The service will keep running in the background.
-
-### 4. Set Up the Project
+### 3. Set Up the Project
 
 ```bash
 # Create a project directory
@@ -98,22 +90,24 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install required Python packages
-pip install streamlit ollama fpdf
+pip install streamlit openai fpdf
 ```
 
-### 5. Add Application Files
+### 4. Add Application Files
 
 Place all the application's Python files (`main_app.py`, `parser.py`, `llm.py`, `enrichment.py`, `reporting.py`, `prompts.py`) into the `cyber-analyzer` directory.
 
-### 6. Run the Application
+### 5. Run the Application
 
 ```bash
 streamlit run main_app.py
 ```
-Open your web browser and navigate to the **Local URL** provided by Streamlit (e.g., `http://localhost:8501`).
+
+> Open your web browser and navigate to the **Local URL** provided by Streamlit (e.g., `http://localhost:8501`). You will need a valid OpenAI API key to use the analysis feature.
 
 ---
 
 ## ✍️ Author
 
 * **Adewale Olalekan**
+

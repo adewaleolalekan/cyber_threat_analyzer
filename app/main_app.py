@@ -8,9 +8,22 @@ from reporting import generate_report
 import logging
 import traceback
 import base64
+import random
 
-# This is an internal Streamlit class, which is less stable.
-# A more modern approach for getting session info might be needed in future Streamlit versions.
+# --- Session State Initialization ---
+if 'analysis_complete' not in st.session_state:
+    st.session_state.analysis_complete = False
+if 'llm_response' not in st.session_state:
+    st.session_state.llm_response = ""
+if 'enriched_data' not in st.session_state:
+    st.session_state.enriched_data = []
+if 'file_name' not in st.session_state:
+    st.session_state.file_name = ""
+if 'uploaded_file_data' not in st.session_state:
+    st.session_state.uploaded_file_data = None
+
+
+# This is an internal Streamlit class.
 try:
     from streamlit.web.server.server import Server
     from streamlit.runtime.scriptrunner import get_script_run_ctx
@@ -30,59 +43,31 @@ def load_css():
     """Injects custom CSS for a more polished look."""
     st.markdown("""
     <style>
-        /* --- General Body & Font --- */
-        body {
-            background-color: #1a1a2e; /* Dark blue-purple background */
-        }
+        body { background-color: #1a1a2e; }
         .stApp {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             color: #e0e0e0;
         }
-        h1, h2, h3 {
-            color: #ffffff; /* Brighter titles */
-        }
-        
-        /* --- Styled Containers (Cards) --- */
+        h1, h2, h3 { color: #ffffff; }
         .st-emotion-cache-1r4qj8v, .st-emotion-cache-1kyxreq {
              background-color: rgba(255, 255, 255, 0.05);
              border: 1px solid rgba(255, 255, 255, 0.1);
              border-radius: 15px;
              padding: 25px;
-             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         }
-
-        /* --- File Uploader Styling --- */
-        .st-emotion-cache-1gulkj5 {
-            border-color: #4a4a6a;
-            background-color: #16213e;
-        }
-
-        /* --- Button Styling --- */
         .stButton>button {
             border-radius: 10px;
-            border: 1px solid #0f3460;
-            background-color: #16213e;
-            color: #e94560;
-            transition: all 0.3s ease-in-out;
-        }
-        .stButton>button:hover {
+            border: 1px solid #e94560;
             background-color: #e94560;
             color: #ffffff;
-            border-color: #e94560;
+            transition: all 0.3s ease-in-out;
         }
+        .stButton>button:hover { background-color: transparent; color: #e94560; }
         .stDownloadButton>button {
-            background-color: #e94560;
-            color: white;
+            background-color: #16213e;
+            color: #e94560;
+            border: 1px solid #e94560;
             border-radius: 10px;
-        }
-        .stDownloadButton>button:hover {
-            background-color: #c73b52;
-            color: white;
-        }
-
-        /* --- Spinner --- */
-        .stSpinner > div > div {
-            border-top-color: #e94560; /* Spinner color */
         }
     </style>
     """, unsafe_allow_html=True)
@@ -94,7 +79,6 @@ def get_real_ip():
         if get_script_run_ctx:
             ctx = get_script_run_ctx()
             if ctx is None: return "127.0.0.1"
-            
             session_info = Server.get_current()._get_session_info(ctx.session_id)
             if session_info:
                 forwarded_for = session_info.ws.request.headers.get('X-Forwarded-For')
@@ -113,97 +97,101 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Load custom CSS
 load_css()
 
 # --- Page Header ---
 st.title("🛡️ AI Cyber Threat Analyzer")
-st.markdown("""
-*An intelligent agent for analyzing network captures and logs using local AI.*
-""")
+st.markdown("*Analyze network captures and logs with AI.*")
 
 # --- Main app layout ---
 col1, col2 = st.columns((1, 1), gap="large")
 
 with col1:
-    # --- Upload Section as a styled container ---
     with st.container():
-        st.header("1. Upload Your File")
+        st.header("1. Configure Analysis")
+        
         uploaded_file = st.file_uploader(
-            "Drag and drop a PCAP, PCAPNG, or Log file here.", 
-            type=["pcap", "pcapng", "log", "txt"],
-            label_visibility="collapsed"
+            "Upload a PCAP, PCAPNG, or Log file.", 
+            type=["pcap", "pcapng", "log", "txt"]
         )
 
-if uploaded_file:
-    # --- Security & Size Checks ---
-    MAX_FILE_SIZE_MB = 15
-    file_size_mb = len(uploaded_file.getvalue()) / (1024 * 1024)
-    uploaded_file.seek(0)
+        if uploaded_file and uploaded_file.name != st.session_state.file_name:
+            st.session_state.file_name = uploaded_file.name
+            st.session_state.uploaded_file_data = uploaded_file.getvalue()
+            st.session_state.analysis_complete = False
+            st.session_state.llm_response = ""
 
-    if file_size_mb > MAX_FILE_SIZE_MB:
-        st.error(f"❌ **File too large:** Must be under {MAX_FILE_SIZE_MB}MB.")
-    elif any(shell in uploaded_file.name.lower() for shell in [".sh", ".exe", ".php"]):
-        st.error("🚫 **Disallowed file type:** For security reasons, this file type is not allowed.")
+        api_key = st.text_input("Enter your OpenAI API Key", type="password")
+        st.markdown(
+            "<p style='font-size:0.8rem; color:#bbb;'>Don't have a key? Get one from the <a href='https://platform.openai.com/api-keys' target='_blank'>OpenAI Platform</a>.</p>", 
+            unsafe_allow_html=True
+        )
+        
+        analyze_button = st.button("Analyze File", use_container_width=True)
+
+# --- Analysis Logic ---
+if analyze_button:
+    if not st.session_state.uploaded_file_data:
+        st.warning("Please upload a file first.")
+    elif not api_key:
+        st.warning("Please enter your OpenAI API Key.")
     else:
+        st.session_state.analysis_complete = True
+        
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        save_path = f"/tmp/{timestamp}_{uploaded_file.name}"
-        with open(save_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-
-        with col2:
-            # --- Analysis Section as a styled container ---
-            with st.container():
-                st.header("2. AI Analysis & Report")
-                
-                spinner_messages = [
-                    "Engaging local AI model...",
-                    "Deconstructing packet data...",
-                    "Searching for digital ghosts...",
-                    "Consulting with silicon oracles..."
-                ]
-                
-                with st.spinner(text=random.choice(spinner_messages)):
-                    # --- File parsing ---
-                    log_text, indicators = parse_file(save_path)
-
-                    if not log_text.strip() or "Error:" in log_text:
-                        st.error(f"⚠️ **Processing Failed:** {log_text}")
+        save_path = f"/tmp/{timestamp}_{st.session_state.file_name}"
+        
+        try:
+            with open(save_path, "wb") as f:
+                f.write(st.session_state.uploaded_file_data)
+            
+            with col2:
+                with st.container():
+                    st.header("2. AI Analysis & Report")
+                    with st.spinner("Parsing file..."):
+                        log_text, indicators = parse_file(save_path)
+                    
+                    # --- FIX: Check for parsing errors BEFORE calling the AI ---
+                    if "Error:" in log_text or not indicators:
+                        st.error(f"⚠️ **Parsing Failed:** {log_text}")
+                        st.session_state.analysis_complete = False # Stop further processing
                     else:
-                        # --- Threat Scoring & LLM Analysis ---
-                        enriched_data = enrich_indicators(indicators)
-                        llm_response = ""
-                        try:
-                            llm_response = call_llm(log_text, enriched_data)
-                        except Exception as e:
-                            logging.error("LLM call failed: %s", traceback.format_exc())
-                            st.error(f"⚠️ **AI Analysis Error:** Could not connect to the local AI model. {e}")
-
-                        if llm_response and "Error connecting to Ollama" not in llm_response:
-                            st.subheader("🧠 Threat Intelligence Summary")
-                            st.markdown(llm_response)
+                        with st.spinner("Contacting AI for analysis..."):
+                            enriched_data = enrich_indicators(indicators)
+                            llm_response = call_llm(log_text, enriched_data, api_key)
                             
-                            # --- Report Download ---
-                            st.subheader("📄 Download Full Report")
-                            user_ip = get_real_ip()
-                            report_file = generate_report(
-                                filename=os.path.basename(uploaded_file.name),
-                                user_ip=user_ip,
-                                enrichments=enriched_data,
-                                gpt_output=llm_response
-                            )
-                            with open(report_file, "rb") as f:
-                                st.download_button(
-                                    label="Download PDF Report",
-                                    data=f,
-                                    file_name=os.path.basename(report_file),
-                                    mime="application/pdf",
-                                    use_container_width=True
-                                )
-                        elif llm_response:
-                            st.error(f"⚠️ {llm_response}")
-                        else:
-                            st.warning("⚠️ Report generation was skipped due to an analysis error.")
+                            st.session_state.llm_response = llm_response
+                            st.session_state.enriched_data = enriched_data
+        finally:
+            if os.path.exists(save_path):
+                os.remove(save_path)
+
+# --- Display Results ---
+if st.session_state.analysis_complete and st.session_state.llm_response:
+    with col2:
+        with st.container():
+            # This check prevents trying to display an empty header
+            if st.session_state.llm_response:
+                st.header("2. AI Analysis & Report")
+                st.subheader("🧠 Threat Intelligence Summary")
+                st.markdown(st.session_state.llm_response)
+                
+                st.subheader("📄 Download Full Report")
+                user_ip = get_real_ip()
+                report_file = generate_report(
+                    filename=st.session_state.file_name,
+                    user_ip=user_ip,
+                    enrichments=st.session_state.enriched_data,
+                    gpt_output=st.session_state.llm_response
+                )
+                with open(report_file, "rb") as f:
+                    st.download_button(
+                        label="Download PDF Report",
+                        data=f,
+                        file_name=os.path.basename(report_file),
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
 
 # --- Footer ---
 st.markdown("""
